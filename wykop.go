@@ -33,7 +33,13 @@ func (c *WykopAPI) AddErrorHandler(errorCode uint16, f func(*ErrorResponse, *Wyk
 	c.errorHanders[errorCode] = f
 }
 func decodeJSON(data []byte, target interface{}) error {
-	return json.Unmarshal(data, target)
+	switch v := target.(type) {
+	case *string:
+		*v = string(data)
+		return nil
+	default:
+		return json.Unmarshal(data, target)
+	}
 }
 func (c *WykopAPI) handleWykopError(wykopError *ErrorResponse, request *WykopRequest) {
 	fmt.Printf("Handling error: %v", wykopError)
@@ -151,4 +157,14 @@ func (c *WykopAPI) Unobserve(username string) bool {
 		return false
 	}
 	return true
+}
+func (c *WykopAPI) GetNotifications(page uint) *[]Notification {
+	APIParams := APIParamsT{APIParamPair{"page", fmt.Sprint(page)}}
+	var resp []Notification
+	req := c.NewRequest("mywykop/notifications", OptionAPIParams(APIParams))
+	err := c.sendRequest(req, &resp)
+	if err != nil {
+		return nil
+	}
+	return &resp
 }

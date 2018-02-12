@@ -81,3 +81,11 @@ type ConversationListItem struct {
 	Group      uint8     `json:"author_group"`
 	Status     string    `json:"status"`
 }
+type Notification struct {
+	Author       string    `json:"author"`
+	AuthorAvatar string    `json:"author_avatar"`
+	AuthorGroup  uint8     `json:"author_group"`
+	Date         WykopTime `json:"date"`
+	Body         string    `json:"body"`
+	Type         string    `json:"type"`
+}
