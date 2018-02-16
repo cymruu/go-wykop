@@ -95,18 +95,20 @@ func (c *WykopAPI) sendRequest(request *WykopRequest, target interface{}) error 
 	data, _ := ioutil.ReadAll(res.Body)
 	APIErr := ErrorResponse{}
 	decodeJSON(data, &APIErr)
-	if APIErr.ErrorObject.Code > 0 == true {
+	if APIErr.ErrorObject.Code > 0 {
 		c.handleWykopError(&APIErr, request)
 		return &APIErr
 	}
 	err = decodeJSON(data, target)
 	if err != nil {
-		return err
+		APIErr.ErrorObject.Code = errMalformedReponse
+		APIErr.ErrorObject.Message = "Returned data is neither APIErr nor target object. Make sure the target argument is valid"
+		return &APIErr
 	}
 	return nil
 }
 
-func (c *WykopAPI) Login(login, connectionKey string) bool {
+func (c *WykopAPI) Login(login, connectionKey string) (bool, error) {
 	c.login = login
 	c.connectionKey = connectionKey
 	postData := url.Values{}
@@ -114,57 +116,42 @@ func (c *WykopAPI) Login(login, connectionKey string) bool {
 	postData.Add("accountkey", c.connectionKey)
 	req := c.NewRequest("user/login", OptionPostData(postData))
 	resp := AuthorizationResponse{}
-	err := c.sendRequest(req, &resp)
-	if err != nil {
-		return false
+	if err := c.sendRequest(req, &resp); err != nil {
+		return false, err
 	}
 	c.userKey = resp.Userkey
-	return true
+	return true, nil
 }
 
-func (c *WykopAPI) GetEntry(entryID string) *EntryResponse {
+func (c *WykopAPI) GetEntry(entryID string) (*EntryResponse, error) {
 	resp := EntryResponse{}
 	err := c.sendRequest(c.NewRequest("entries/index", OptionMethodParams(MethodParamsT{entryID})), &resp)
-	if err != nil {
-		return nil
-	}
-	return &resp
+	return &resp, err
 }
 
-func (c *WykopAPI) GetConversationList() *[]ConversationListItem {
+func (c *WykopAPI) GetConversationList() (*[]ConversationListItem, error) {
 	resp := []ConversationListItem{}
 	err := c.sendRequest(c.NewRequest("pm/conversationslist"), &resp)
-	if err != nil {
-		return nil
-	}
-	return &resp
+	return &resp, err
 }
-
-func (c *WykopAPI) Observe(username string) bool {
-	req := c.NewRequest("profile/observe", OptionMethodParams(MethodParamsT{username}))
+func (c *WykopAPI) observeHandler(endpoint string, username string) (bool, error) {
+	req := c.NewRequest(fmt.Sprintf("profile/%s", endpoint), OptionMethodParams(MethodParamsT{username}))
 	var resp string
 	err := c.sendRequest(req, &resp)
 	if err != nil || resp != WYKOP_TRUE_RESPONSE {
-		return false
+		return false, err
 	}
-	return true
+	return true, nil
 }
-func (c *WykopAPI) Unobserve(username string) bool {
-	req := c.NewRequest("profile/unobserve", OptionMethodParams(MethodParamsT{username}))
-	var resp string
-	err := c.sendRequest(req, &resp)
-	if err != nil || resp != WYKOP_TRUE_RESPONSE {
-		return false
-	}
-	return true
+func (c *WykopAPI) Observe(username string) (bool, error) {
+	return c.observeHandler("observe", username)
 }
-func (c *WykopAPI) GetNotifications(page uint) *[]Notification {
+func (c *WykopAPI) Unobserve(username string) (bool, error) {
+	return c.observeHandler("unobserve", username)
+}
+func (c *WykopAPI) GetNotifications(page uint) (*[]Notification, error) {
 	APIParams := APIParamsT{APIParamPair{"page", fmt.Sprint(page)}}
 	var resp []Notification
-	req := c.NewRequest("mywykop/notifications", OptionAPIParams(APIParams))
-	err := c.sendRequest(req, &resp)
-	if err != nil {
-		return nil
-	}
-	return &resp
+	err := c.sendRequest(c.NewRequest("mywykop/notifications", OptionAPIParams(APIParams)), &resp)
+	return &resp, err
 }
