@@ -24,10 +24,17 @@ type WykopAPI struct {
 	userKey       string
 	httpClient    http.Client
 	errorHanders  map[uint16]func(*ErrorResponse, *WykopRequest)
+	Limits        *wykopLimits
 }
 
 func Create(APIkey, secretKey string) *WykopAPI {
 	return &WykopAPI{APIkey: APIkey, secretKey: secretKey, baseURL: _BASEURL, httpClient: http.Client{Timeout: 10 * time.Second}, errorHanders: make(map[uint16]func(*ErrorResponse, *WykopRequest))}
+}
+func (c *WykopAPI) InitializeLimits(options ...limitOptional) {
+	c.Limits = initializeLimits()
+	for _, op := range options {
+		op(c.Limits)
+	}
 }
 func (c *WykopAPI) AddErrorHandler(errorCode uint16, f func(*ErrorResponse, *WykopRequest)) {
 	c.errorHanders[errorCode] = f
@@ -90,6 +97,9 @@ func (c *WykopAPI) sendRequest(request *WykopRequest, target interface{}) error 
 	if err != nil {
 		fmt.Print(err)
 		return err
+	}
+	if c.Limits != nil {
+		c.Limits.register()
 	}
 	defer res.Body.Close()
 	data, _ := ioutil.ReadAll(res.Body)
